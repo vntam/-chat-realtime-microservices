@@ -1,11 +1,14 @@
 import { useState, FormEvent } from 'react'
 import { Send } from 'lucide-react'
 import { chatService } from '@/services/chatService'
+import { userService } from '@/services/userService'
+import { useAuthStore } from '@/store/authStore'
 import { useChatStore } from '@/store/chatStore'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 
 export default function ChatInput() {
+  const { user } = useAuthStore()
   const { selectedConversation, addMessage, updateConversationLastMessage } = useChatStore()
   const [message, setMessage] = useState('')
   const [isSending, setIsSending] = useState(false)
@@ -21,6 +24,30 @@ export default function ChatInput() {
         conversationId: selectedConversation.id,
         content: message.trim(),
       })
+
+      // Populate sender info before adding to store
+      const senderId = parseInt(sentMessage.senderId || sentMessage.sender?.id || '0')
+      if (senderId > 0 && user) {
+        try {
+          const users = await userService.getUsersByIds([senderId])
+          const sender = users[0]
+          if (sender) {
+            sentMessage.sender = {
+              id: String(senderId),
+              name: sender.username,
+              email: sender.email,
+            }
+          }
+        } catch (error) {
+          console.error('Failed to fetch sender info:', error)
+          // Fallback to current user info
+          sentMessage.sender = {
+            id: String(user.user_id),
+            name: user.username,
+            email: user.email,
+          }
+        }
+      }
 
       // Add message to store (WebSocket will also send it, but this is for optimistic UI)
       addMessage(sentMessage)

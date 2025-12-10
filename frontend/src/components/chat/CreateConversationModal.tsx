@@ -20,7 +20,7 @@ export default function CreateConversationModal({ open, onClose }: CreateConvers
   const { addConversation, selectConversation } = useChatStore()
 
   const [users, setUsers] = useState<User[]>([])
-  const [selectedUsers, setSelectedUsers] = useState<string[]>([])
+  const [selectedUsers, setSelectedUsers] = useState<number[]>([])
   const [groupName, setGroupName] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -41,7 +41,7 @@ export default function CreateConversationModal({ open, onClose }: CreateConvers
     try {
       const data = await userService.getAllUsers()
       // Filter out current user
-      const filteredUsers = data.filter((u) => u.id !== currentUser?.id)
+      const filteredUsers = data.filter((u) => u.user_id !== currentUser?.user_id)
       setUsers(filteredUsers)
     } catch (error) {
       console.error('Failed to fetch users:', error)
@@ -50,7 +50,7 @@ export default function CreateConversationModal({ open, onClose }: CreateConvers
     }
   }
 
-  const toggleUser = (userId: string) => {
+  const toggleUser = (userId: number) => {
     setSelectedUsers((prev) =>
       prev.includes(userId)
         ? prev.filter((id) => id !== userId)
@@ -75,8 +75,9 @@ export default function CreateConversationModal({ open, onClose }: CreateConvers
 
     setIsCreating(true)
     try {
+      // Convert number[] to string[] for API
       const conversation = await chatService.createConversation({
-        participantIds: selectedUsers,
+        participantIds: selectedUsers.map(id => String(id)),
         isGroup,
         name: isGroup ? groupName.trim() : undefined,
       })
@@ -93,8 +94,8 @@ export default function CreateConversationModal({ open, onClose }: CreateConvers
   }
 
   const filteredUsers = users.filter((user) =>
-    user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchQuery.toLowerCase())
+    user.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    user.email?.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
   const isGroup = selectedUsers.length > 1
@@ -149,23 +150,25 @@ export default function CreateConversationModal({ open, onClose }: CreateConvers
                   Không tìm thấy người dùng
                 </div>
               ) : (
-                filteredUsers.map((user) => (
+                filteredUsers.map((user) => {
+                  const isSelected = selectedUsers.includes(user.user_id)
+                  return (
                   <button
-                    key={user.id}
+                    key={user.user_id}
                     type="button"
-                    onClick={() => toggleUser(user.id)}
+                    onClick={() => toggleUser(user.user_id)}
                     className="w-full p-3 flex items-center gap-3 hover:bg-accent transition-colors border-b border-border last:border-b-0"
                   >
                     {/* Avatar */}
                     <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                       <span className="text-sm font-semibold text-primary">
-                        {user.name[0].toUpperCase()}
+                        {user.username[0].toUpperCase()}
                       </span>
                     </div>
 
                     {/* Info */}
                     <div className="flex-1 text-left min-w-0">
-                      <p className="text-sm font-medium truncate">{user.name}</p>
+                      <p className="text-sm font-medium truncate">{user.username}</p>
                       <p className="text-xs text-muted-foreground truncate">
                         {user.email}
                       </p>
@@ -174,17 +177,18 @@ export default function CreateConversationModal({ open, onClose }: CreateConvers
                     {/* Checkbox */}
                     <div
                       className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${
-                        selectedUsers.includes(user.id)
+                        isSelected
                           ? 'bg-primary border-primary'
                           : 'border-input'
                       }`}
                     >
-                      {selectedUsers.includes(user.id) && (
+                      {isSelected && (
                         <Check className="w-3 h-3 text-primary-foreground" />
                       )}
                     </div>
                   </button>
-                ))
+                  )
+                })
               )}
             </div>
 

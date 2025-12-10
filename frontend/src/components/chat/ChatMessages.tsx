@@ -62,8 +62,8 @@ export default function ChatMessages() {
           {/* Messages for this date */}
           <div className="space-y-3">
             {msgs.map((message, index) => {
-              const isOwnMessage = message.sender.id === user?.id
-              const showAvatar = !isOwnMessage && (index === msgs.length - 1 || msgs[index + 1]?.sender.id !== message.sender.id)
+              const isOwnMessage = message.sender?.id ? parseInt(message.sender.id) === user?.user_id : false
+              const showAvatar = !isOwnMessage && (index === msgs.length - 1 || msgs[index + 1]?.sender?.id !== message.sender?.id)
 
               return (
                 <div
@@ -77,7 +77,7 @@ export default function ChatMessages() {
                     <div className="flex-shrink-0">
                       {showAvatar ? (
                         <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xs font-semibold shadow-md">
-                          {message.sender.name[0].toUpperCase()}
+                          {(message.sender?.name || 'U')[0].toUpperCase()}
                         </div>
                       ) : (
                         <div className="w-8" />
@@ -97,7 +97,7 @@ export default function ChatMessages() {
                   >
                     {!isOwnMessage && showAvatar && (
                       <p className="text-xs font-semibold mb-1.5 text-blue-600">
-                        {message.sender.name}
+                        {message.sender?.name || 'Unknown'}
                       </p>
                     )}
                     <p className="text-sm leading-relaxed break-words">{message.content}</p>

@@ -61,7 +61,6 @@ export class UsersService {
   async findById(id: number): Promise<UserResponseDto> {
     const user = await this.repo.findOne({
       where: { user_id: id },
-      relations: ['roles', 'groups'],
     });
 
     if (!user) throw new NotFoundException('User not found');
@@ -81,6 +80,20 @@ export class UsersService {
     if (!user) throw new NotFoundException('User not found');
 
     return this.toPublicResponse(user);
+  }
+
+  /**
+   * Batch fetch users by IDs (optimized for fetching multiple users at once)
+   */
+  async findByIds(ids: number[]): Promise<PublicUserResponseDto[]> {
+    if (ids.length === 0) return [];
+
+    const users = await this.repo
+      .createQueryBuilder('user')
+      .where('user.user_id IN (:...ids)', { ids })
+      .getMany();
+
+    return users.map((user) => this.toPublicResponse(user));
   }
 
   async findAll(
@@ -103,9 +116,7 @@ export class UsersService {
     const queryBuilder = this.repo
       .createQueryBuilder('user')
       .leftJoinAndSelect('user.roles', 'userRole')
-      .leftJoinAndSelect('userRole.role', 'role')
-      .leftJoinAndSelect('user.groups', 'userGroup')
-      .leftJoinAndSelect('userGroup.group', 'group');
+      .leftJoinAndSelect('userRole.role', 'role');
 
     // Filtering: Search
     if (search && search.trim() !== '') {
@@ -260,11 +271,12 @@ export class UsersService {
 
   /**
    * Mapper cho thông tin user công khai
-   * Chứa: username, avatar_url, status, created_at
-   * KHÔNG chứa: user_id, email, roles, groups (thông tin nhạy cảm)
+   * Chứa: user_id, username, avatar_url, status, created_at
+   * KHÔNG chứa: email, roles, groups (thông tin nhạy cảm)
    */
   private toPublicResponse(user: User): PublicUserResponseDto {
     return {
+      user_id: user.user_id,
       username: user.username,
       avatar_url: user.avatar_url,
       status: user.status,

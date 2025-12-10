@@ -59,10 +59,13 @@ export class UserResponseDto {
 /**
  * Public User Response DTO - Chỉ chứa thông tin công khai
  * Dùng cho GET /users/{id} khi user khác xem profile
- * Chứa: username, avatar_url, status, created_at
- * KHÔNG chứa: user_id, email, roles, groups (thông tin nhạy cảm)
+ * Chứa: user_id, username, avatar_url, status, created_at
+ * KHÔNG chứa: email, roles, groups (thông tin nhạy cảm)
  */
 export class PublicUserResponseDto {
+  @ApiProperty({ description: 'ID user (cần cho tạo conversation)', example: 123 })
+  user_id: number;
+
   @ApiProperty({ description: 'Tên đăng nhập (công khai)' })
   username: string;
 

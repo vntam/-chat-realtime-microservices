@@ -1,10 +1,11 @@
 import { create } from 'zustand'
 
 interface User {
-  id: string
+  user_id: number
   email: string
-  name: string
-  role?: string
+  username: string
+  avatar_url?: string
+  status?: string
 }
 
 interface AuthState {
@@ -13,7 +14,7 @@ interface AuthState {
   isLoading: boolean
   setUser: (user: User | null) => void
   setLoading: (loading: boolean) => void
-  login: (user: User, accessToken: string, refreshToken: string) => void
+  login: (user: User, accessToken?: string) => void
   logout: () => void
 }
 
@@ -26,15 +27,18 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   setLoading: (loading) => set({ isLoading: loading }),
 
-  login: (user, accessToken, refreshToken) => {
-    localStorage.setItem('access_token', accessToken)
-    localStorage.setItem('refresh_token', refreshToken)
+  login: (user, accessToken?: string) => {
+    // Store accessToken in sessionStorage for cross-port API calls
+    // (cookies don't work across different ports)
+    if (accessToken) {
+      sessionStorage.setItem('access_token', accessToken)
+    }
     set({ user, isAuthenticated: true })
   },
 
   logout: () => {
-    localStorage.removeItem('access_token')
-    localStorage.removeItem('refresh_token')
+    // Clear sessionStorage and cookies
+    sessionStorage.removeItem('access_token')
     set({ user: null, isAuthenticated: false })
   },
 }))

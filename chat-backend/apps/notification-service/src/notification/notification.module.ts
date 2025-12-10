@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+import { JwtModule } from '@nestjs/jwt';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { NotificationController } from './notification.controller';
 import { NotificationService } from './notification.service';
@@ -14,6 +15,10 @@ import {
     MongooseModule.forFeature([
       { name: Notification.name, schema: NotificationSchema },
     ]),
+    JwtModule.register({
+      secret: process.env.JWT_ACCESS_SECRET || 'supersecret_access',
+      signOptions: { expiresIn: '15m' },
+    }),
     ClientsModule.register([
       {
         name: 'USER_SERVICE',

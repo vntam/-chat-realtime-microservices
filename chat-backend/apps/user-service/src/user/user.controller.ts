@@ -40,6 +40,14 @@ export class UsersController {
     return this.usersService.findAll(query);
   }
 
+  @Post('batch')
+  async findByIds(@Body() body: { ids: number[] }): Promise<PublicUserResponseDto[]> {
+    if (!Array.isArray(body.ids) || body.ids.length === 0) {
+      return [];
+    }
+    return this.usersService.findByIds(body.ids);
+  }
+
   /**
    * Lấy thông tin user công khai (dùng khi user khác xem profile)
    * Chỉ trả về thông tin an toàn: user_id, username, avatar_url, created_at

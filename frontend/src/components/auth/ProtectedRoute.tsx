@@ -11,21 +11,28 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { isAuthenticated, isLoading, setUser, setLoading } = useAuthStore()
 
   useEffect(() => {
-    // Check if user is authenticated on mount
+    // Check if user is authenticated on mount (cookies are sent automatically)
     const checkAuth = async () => {
-      const token = localStorage.getItem('access_token')
-      if (token) {
-        try {
-          const user = await authService.getCurrentUser()
-          setUser(user)
-        } catch (error) {
-          console.error('Failed to get current user:', error)
-          setUser(null)
-        }
-      } else {
+      // Check if we have accessToken in sessionStorage
+      const hasToken = sessionStorage.getItem('access_token')
+      
+      if (!hasToken) {
+        // No token, user not authenticated
         setUser(null)
+        setLoading(false)
+        return
       }
-      setLoading(false)
+
+      try {
+        const user = await authService.getCurrentUser()
+        setUser(user)
+      } catch (error) {
+        console.error('Failed to get current user:', error)
+        setUser(null)
+        sessionStorage.removeItem('access_token')
+      } finally {
+        setLoading(false)
+      }
     }
 
     checkAuth()

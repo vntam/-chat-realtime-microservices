@@ -18,7 +18,7 @@ export default function LoginPage() {
   const [formData, setFormData] = useState({
     email: '',
     password: '',
-    name: '',
+    username: '',
     confirmPassword: '',
   })
 
@@ -35,8 +35,8 @@ export default function LoginPage() {
           password: formData.password,
         })
 
-        // Save auth state
-        setAuthState(response.user, response.accessToken, response.refreshToken)
+        // Save auth state (cookies for user-service, accessToken for other services)
+        setAuthState(response.user, response.accessToken)
 
         // Redirect to home
         navigate('/')
@@ -49,13 +49,14 @@ export default function LoginPage() {
         }
 
         const response = await authService.register({
-          name: formData.name,
+          username: formData.username,
           email: formData.email,
           password: formData.password,
+          confirmPassword: formData.confirmPassword,
         })
 
-        // Save auth state
-        setAuthState(response.user, response.accessToken, response.refreshToken)
+        // Save auth state (cookies for user-service, accessToken for other services)
+        setAuthState(response.user, response.accessToken)
 
         // Redirect to home
         navigate('/')
@@ -109,7 +110,7 @@ export default function LoginPage() {
             </div>
           </div>
           <CardTitle className="text-3xl text-center font-bold gradient-text">
-            {isLogin ? 'Chào mừng trở lại' : 'Tạo tài khoản'}
+            {isLogin ? 'Chat Message' : 'Tạo tài khoản'}
           </CardTitle>
           <CardDescription className="text-center text-base pt-2">
             {isLogin
@@ -127,16 +128,16 @@ export default function LoginPage() {
               </div>
             )}
 
-            {/* Name field - only for register */}
+            {/* Username field - only for register */}
             {!isLogin && (
               <div className="space-y-2">
-                <Label htmlFor="name">Tên hiển thị</Label>
+                <Label htmlFor="username">Tên đăng nhập</Label>
                 <Input
-                  id="name"
-                  name="name"
+                  id="username"
+                  name="username"
                   type="text"
-                  placeholder="Nguyễn Văn A"
-                  value={formData.name}
+                  placeholder="nguyenvana"
+                  value={formData.username}
                   onChange={handleChange}
                   required={!isLogin}
                   disabled={isLoading}

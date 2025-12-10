@@ -4,6 +4,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { ChatService } from './chat.service';
 import { ChatGateway } from './chat.gateway';
+import { ChatController } from './chat.controller';
 import {
   Conversation,
   ConversationSchema,
@@ -17,7 +18,7 @@ import { Message, MessageSchema } from './schemas/message.schema';
       { name: Message.name, schema: MessageSchema },
     ]),
     JwtModule.register({
-      secret: process.env.JWT_ACCESS_SECRET || 'access-secret',
+      secret: process.env.JWT_ACCESS_SECRET || 'supersecret_access',
       signOptions: { expiresIn: '15m' },
     }),
     ClientsModule.register([
@@ -44,7 +45,7 @@ import { Message, MessageSchema } from './schemas/message.schema';
       },
     ]),
   ],
-  controllers: [],
+  controllers: [ChatController],
   providers: [ChatService, ChatGateway],
   exports: [ChatService],
 })

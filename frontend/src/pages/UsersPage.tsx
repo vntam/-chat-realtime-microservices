@@ -29,12 +29,12 @@ export default function UsersPage() {
     fetchUsers()
   }, [])
 
-  const handleDelete = async (userId: string) => {
+  const handleDelete = async (userId: number) => {
     if (!confirm('Bạn có chắc muốn xóa người dùng này?')) return
 
     try {
       await userService.deleteUser(userId)
-      setUsers(users.filter((u) => u.id !== userId))
+      setUsers(users.filter((u) => u.user_id !== userId))
     } catch (err: any) {
       console.error('Failed to delete user:', err)
       alert(err.response?.data?.message || 'Không thể xóa người dùng')
@@ -100,8 +100,8 @@ export default function UsersPage() {
                 </TableHeader>
                 <TableBody>
                   {users.map((user) => (
-                    <TableRow key={user.id}>
-                      <TableCell className="font-medium">{user.name}</TableCell>
+                    <TableRow key={user.user_id}>
+                      <TableCell className="font-medium">{user.username}</TableCell>
                       <TableCell>{user.email}</TableCell>
                       <TableCell>
                         <span className="px-2 py-1 bg-primary/10 text-primary text-xs rounded-full">
@@ -113,7 +113,7 @@ export default function UsersPage() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleDelete(user.id)}
+                          onClick={() => handleDelete(user.user_id)}
                           className="text-destructive hover:text-destructive"
                         >
                           <Trash2 className="w-4 h-4" />

@@ -37,6 +37,7 @@ export class AuthService {
 
     return {
       msg: 'Register successfully',
+      user,
       ...tokens,
     };
   }
@@ -54,8 +55,12 @@ export class AuthService {
 
     const tokens = await this.tokensService.generateAndSaveTokens(user.user_id);
 
+    // Get user info without password_hash
+    const userInfo = await this.usersService.findById(user.user_id);
+
     return {
       msg: 'Login successfully',
+      user: userInfo,
       ...tokens,
     };
   }

@@ -4,18 +4,16 @@ import axios from 'axios'
 const axiosInstance = axios.create({
   baseURL: import.meta.env.VITE_USER_SERVICE_URL || 'http://localhost:3001',
   timeout: 10000,
+  withCredentials: true, // Important: Send cookies with requests
   headers: {
     'Content-Type': 'application/json',
   },
 })
 
-// Request interceptor - add JWT token to requests
+// Request interceptor - no need to manually add token (cookies are auto-sent)
 axiosInstance.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('access_token')
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`
-    }
+    // Cookies are automatically sent with withCredentials: true
     return config
   },
   (error) => {
@@ -36,24 +34,17 @@ axiosInstance.interceptors.response.use(
       originalRequest._retry = true
 
       try {
-        const refreshToken = localStorage.getItem('refresh_token')
-        if (refreshToken) {
-          const response = await axios.post(
-            `${import.meta.env.VITE_USER_SERVICE_URL}/auth/refresh`,
-            { refreshToken }
-          )
+        // Call refresh endpoint (refreshToken is sent automatically via cookie)
+        await axios.post(
+          `${import.meta.env.VITE_USER_SERVICE_URL}/auth/refresh`,
+          {},
+          { withCredentials: true }
+        )
 
-          const { accessToken } = response.data
-          localStorage.setItem('access_token', accessToken)
-
-          // Retry original request with new token
-          originalRequest.headers.Authorization = `Bearer ${accessToken}`
-          return axiosInstance(originalRequest)
-        }
+        // Cookies are updated by backend, retry original request
+        return axiosInstance(originalRequest)
       } catch (refreshError) {
-        // Refresh failed, logout user
-        localStorage.removeItem('access_token')
-        localStorage.removeItem('refresh_token')
+        // Refresh failed, redirect to login
         window.location.href = '/login'
         return Promise.reject(refreshError)
       }

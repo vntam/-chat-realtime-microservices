@@ -3,6 +3,7 @@ import { Users } from 'lucide-react'
 import { useChatStore } from '@/store/chatStore'
 import { useAuthStore } from '@/store/authStore'
 import { chatService } from '@/services/chatService'
+import { userService } from '@/services/userService'
 import { initializeSocket, getSocket } from '@/lib/socket'
 import type { Message } from '@/services/chatService'
 import ChatMessages from '@/components/chat/ChatMessages'
@@ -14,14 +15,37 @@ export default function ChatBox() {
 
   // Initialize socket connection
   useEffect(() => {
-    const token = localStorage.getItem('access_token')
+    const token = sessionStorage.getItem('access_token')
     if (token) {
       initializeSocket(token)
 
       const socket = getSocket()
       if (socket) {
         // Listen for new messages
-        socket.on('new_message', (message: Message) => {
+        socket.on('new_message', async (message: Message) => {
+          // Populate sender info before adding to store
+          const senderId = parseInt(message.senderId || message.sender?.id || '0')
+          if (senderId > 0) {
+            try {
+              const users = await userService.getUsersByIds([senderId])
+              const sender = users[0]
+              if (sender) {
+                message.sender = {
+                  id: String(senderId),
+                  name: sender.username,
+                  email: sender.email,
+                }
+              }
+            } catch (error) {
+              console.error('Failed to fetch sender info:', error)
+              // Fallback sender info
+              message.sender = {
+                id: String(senderId),
+                name: `User ${senderId}`,
+                email: '',
+              }
+            }
+          }
           addMessage(message)
           updateConversationLastMessage(message.conversationId, message)
         })
@@ -62,8 +86,46 @@ export default function ChatBox() {
     if (!selectedConversation) return
 
     try {
+      // Auto-accept pending conversations (to allow replying)
+      // This simulates accepting message requests automatically when user opens the chat
+      try {
+        await chatService.acceptConversation(selectedConversation.id)
+      } catch (error) {
+        // Ignore errors (e.g., already accepted, user is initiator)
+        console.debug('Accept conversation result:', error)
+      }
+
       const messages = await chatService.getMessages(selectedConversation.id)
-      setMessages(messages)
+      
+      // Extract unique sender IDs
+      const senderIds = Array.from(new Set(messages.map((m) => parseInt(m.senderId || m.sender?.id || '0')).filter((id) => !isNaN(id) && id > 0)))
+      
+      // Fetch sender details
+      const users = await userService.getUsersByIds(senderIds)
+      const userMap = new Map(users.map((u) => [u.user_id, u]))
+      
+      // Populate messages with sender details
+      const populatedMessages = messages.map((m) => {
+        const senderId = parseInt(m.senderId || m.sender?.id || '0')
+        const sender = userMap.get(senderId)
+        return {
+          ...m,
+          sender: {
+            id: String(senderId),
+            name: sender?.username || `User ${senderId}`,
+            email: sender?.email || '',
+          },
+        }
+      })
+      
+      // Sort messages by created_at ascending (oldest first)
+      const sortedMessages = populatedMessages.sort((a, b) => {
+        const dateA = new Date(a.createdAt).getTime()
+        const dateB = new Date(b.createdAt).getTime()
+        return dateA - dateB
+      })
+      
+      setMessages(sortedMessages)
     } catch (error) {
       console.error('Failed to load messages:', error)
     }
@@ -77,7 +139,8 @@ export default function ChatBox() {
     }
 
     // For non-group conversations, show other participant's name
-    const otherParticipant = selectedConversation.participants.find((p) => p.id !== user?.id)
+    const currentUserId = String(user?.user_id)
+    const otherParticipant = selectedConversation.participants.find((p) => p.id !== currentUserId)
     return otherParticipant?.name || 'Unknown'
   }
 

@@ -1,7 +1,4 @@
 import axios from 'axios'
-import { mockNotificationService } from '@/mocks/mockServices'
-
-const isMockMode = import.meta.env.VITE_ENABLE_MOCK === 'true'
 
 const notificationAPI = axios.create({
   baseURL: import.meta.env.VITE_NOTIFICATION_SERVICE_URL || 'http://localhost:3003',
@@ -11,8 +8,9 @@ const notificationAPI = axios.create({
   },
 })
 
+// Add access token from sessionStorage (cross-port solution)
 notificationAPI.interceptors.request.use((config) => {
-  const token = localStorage.getItem('access_token')
+  const token = sessionStorage.getItem('access_token')
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
@@ -21,48 +19,41 @@ notificationAPI.interceptors.request.use((config) => {
 
 export interface Notification {
   id: string
-  userId: string
-  type: 'new_message' | 'mention' | 'system'
+  user_id?: number
+  userId?: string
+  type: 'new_message' | 'message' | 'mention' | 'system' | 'group_invite'
   title: string
   content: string
+  related_id?: string
   data?: {
     conversationId?: string
     messageId?: string
     senderId?: string
     senderName?: string
   }
-  isRead: boolean
-  createdAt: string
-  updatedAt: string
+  isRead?: boolean
+  is_read?: boolean
+  createdAt?: string
+  created_at?: string
+  updatedAt?: string
+  updated_at?: string
 }
 
 export const notificationService = {
   getNotifications: async (): Promise<Notification[]> => {
-    if (isMockMode) {
-      return mockNotificationService.getNotifications()
-    }
     const response = await notificationAPI.get('/notifications')
     return response.data
   },
 
   markAsRead: async (notificationId: string): Promise<void> => {
-    if (isMockMode) {
-      return mockNotificationService.markAsRead(notificationId)
-    }
     await notificationAPI.patch(`/notifications/${notificationId}/read`)
   },
 
   markAllAsRead: async (): Promise<void> => {
-    if (isMockMode) {
-      return mockNotificationService.markAllAsRead()
-    }
     await notificationAPI.patch('/notifications/read-all')
   },
 
   deleteNotification: async (notificationId: string): Promise<void> => {
-    if (isMockMode) {
-      return mockNotificationService.deleteNotification(notificationId)
-    }
     await notificationAPI.delete(`/notifications/${notificationId}`)
   },
 }

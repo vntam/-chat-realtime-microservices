@@ -2,17 +2,40 @@ import { useEffect, useState } from 'react'
 import { Bell, Check, CheckCheck, Trash2, MessageSquare, X } from 'lucide-react'
 import { useNotificationStore } from '@/store/notificationStore'
 import { notificationService } from '@/services/notificationService'
+import { initializeNotificationSocket, getNotificationSocket } from '@/lib/socket'
 import type { Notification } from '@/services/notificationService'
 import Button from '@/components/ui/Button'
 
 export default function NotificationDropdown() {
-  const { notifications, unreadCount, setNotifications, markAsRead, markAllAsRead, removeNotification } =
+  const { notifications, unreadCount, setNotifications, addNotification, markAsRead, markAllAsRead, removeNotification } =
     useNotificationStore()
   const [isOpen, setIsOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
 
   useEffect(() => {
     fetchNotifications()
+    
+    // Initialize notification socket
+    const token = sessionStorage.getItem('access_token')
+    if (token) {
+      initializeNotificationSocket(token)
+      
+      const notifSocket = getNotificationSocket()
+      if (notifSocket) {
+        // Listen for new notifications
+        notifSocket.on('notification:created', (notification: Notification) => {
+          console.log('Received notification:', notification)
+          addNotification(notification)
+        })
+      }
+    }
+
+    return () => {
+      const notifSocket = getNotificationSocket()
+      if (notifSocket) {
+        notifSocket.off('notification:created')
+      }
+    }
   }, [])
 
   const fetchNotifications = async () => {
@@ -54,7 +77,8 @@ export default function NotificationDropdown() {
     }
   }
 
-  const formatTime = (dateString: string) => {
+  const formatTime = (dateString?: string) => {
+    if (!dateString) return 'Vừa xong'
     const date = new Date(dateString)
     const now = new Date()
     const diffInMs = now.getTime() - date.getTime()
@@ -73,9 +97,12 @@ export default function NotificationDropdown() {
   const getNotificationIcon = (type: Notification['type']) => {
     switch (type) {
       case 'new_message':
-        return <MessageSquare className="w-5 h-5 text-primary" />
+      case 'message':
+        return <MessageSquare className="w-5 h-5 text-blue-600" />
+      case 'group_invite':
+        return <MessageSquare className="w-5 h-5 text-indigo-600" />
       default:
-        return <Bell className="w-5 h-5 text-muted-foreground" />
+        return <Bell className="w-5 h-5 text-gray-600" />
     }
   }
 
@@ -84,11 +111,11 @@ export default function NotificationDropdown() {
       {/* Bell Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 hover:bg-accent rounded-lg transition-colors"
+        className="relative p-2.5 hover:bg-gray-100 rounded-xl transition-smooth group"
       >
-        <Bell className="w-5 h-5" />
+        <Bell className="w-5 h-5 text-gray-700 group-hover:text-blue-600 transition-smooth" />
         {unreadCount > 0 && (
-          <span className="absolute top-0.5 right-0.5 min-w-[18px] h-[18px] bg-destructive text-destructive-foreground text-xs font-semibold rounded-full flex items-center justify-center px-1">
+          <span className="absolute -top-1 -right-1 min-w-[20px] h-[20px] bg-gradient-to-br from-red-500 to-red-600 text-white text-xs font-bold rounded-full flex items-center justify-center px-1 shadow-lg animate-pulse">
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}
@@ -140,57 +167,67 @@ export default function NotificationDropdown() {
                   </p>
                 </div>
               ) : (
-                notifications.map((notification) => (
+                notifications.map((notification) => {
+                  const isRead = notification.isRead ?? notification.is_read ?? false
+                  const createdAt = notification.createdAt ?? notification.created_at
+                  return (
                   <div
                     key={notification.id}
-                    className={`p-4 border-b border-border hover:bg-accent transition-colors ${
-                      !notification.isRead ? 'bg-primary/5' : ''
+                    className={`p-4 border-b border-gray-200 last:border-b-0 hover:bg-gray-50 transition-smooth cursor-pointer ${
+                      !isRead ? 'bg-blue-50' : ''
                     }`}
                   >
                     <div className="flex items-start gap-3">
                       {/* Icon */}
-                      <div className="flex-shrink-0 mt-1">
+                      <div className="flex-shrink-0 mt-1 w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
                         {getNotificationIcon(notification.type)}
                       </div>
 
                       {/* Content */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2 mb-1">
-                          <h4 className="font-medium text-sm">{notification.title}</h4>
-                          {!notification.isRead && (
-                            <div className="w-2 h-2 bg-primary rounded-full flex-shrink-0 mt-1" />
+                          <h4 className="font-semibold text-sm text-gray-900">{notification.title}</h4>
+                          {!isRead && (
+                            <div className="w-2.5 h-2.5 bg-blue-600 rounded-full flex-shrink-0 mt-1 animate-pulse" />
                           )}
                         </div>
-                        <p className="text-sm text-muted-foreground mb-2">
+                        <p className="text-sm text-gray-600 mb-2 line-clamp-2">
                           {notification.content}
                         </p>
                         <div className="flex items-center justify-between">
-                          <span className="text-xs text-muted-foreground">
-                            {formatTime(notification.createdAt)}
+                          <span className="text-xs text-gray-500 font-medium">
+                            {formatTime(createdAt)}
                           </span>
                           <div className="flex items-center gap-1">
-                            {!notification.isRead && (
+                            {!isRead && (
                               <button
-                                onClick={() => handleMarkAsRead(notification.id)}
-                                className="p-1 hover:bg-background rounded transition-colors"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleMarkAsRead(notification.id)
+                                }}
+                                className="p-1.5 hover:bg-blue-100 rounded-lg transition-smooth"
                                 title="Đánh dấu đã đọc"
                               >
-                                <Check className="w-4 h-4 text-primary" />
+                                <Check className="w-4 h-4 text-blue-600" />
                               </button>
                             )}
                             <button
-                              onClick={() => handleDelete(notification.id)}
-                              className="p-1 hover:bg-background rounded transition-colors"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleDelete(notification.id)
+                              }}
+                              className="p-1.5 hover:bg-red-100 rounded-lg transition-smooth"
                               title="Xóa"
                             >
-                              <Trash2 className="w-4 h-4 text-muted-foreground hover:text-destructive" />
+                              <Trash2 className="w-4 h-4 text-gray-500 hover:text-red-600" />
                             </button>
                           </div>
                         </div>
                       </div>
                     </div>
                   </div>
-                ))
+                  )
+                })
               )}
             </div>
           </div>

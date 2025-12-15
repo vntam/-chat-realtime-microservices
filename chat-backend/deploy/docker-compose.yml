@@ -1,0 +1,219 @@
+version: '3.9'
+
+services:
+  # ====================================
+  # Infrastructure Services (Optional - for local development only)
+  # Comment out if using cloud services (Render, Atlas, CloudAMQP)
+  # ====================================
+
+  # postgres:
+  #   image: postgres:16-alpine
+  #   container_name: chat-postgres
+  #   environment:
+  #     POSTGRES_USER: postgres
+  #     POSTGRES_PASSWORD: postgres
+  #     POSTGRES_DB: user_db_tagw
+  #   ports:
+  #     - '5432:5432'
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   healthcheck:
+  #     test: ['CMD-SHELL', 'pg_isready -U postgres']
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+
+  # mongodb-chat:
+  #   image: mongo:7.0-alpine
+  #   container_name: chat-mongodb-chat
+  #   environment:
+  #     MONGO_INITDB_DB: chat_db
+  #   ports:
+  #     - '27017:27017'
+  #   volumes:
+  #     - mongodb_chat_data:/data/db
+  #   healthcheck:
+  #     test: ['CMD', 'mongosh', '--eval', 'db.adminCommand("ping")']
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+
+  # mongodb-notification:
+  #   image: mongo:7.0-alpine
+  #   container_name: chat-mongodb-notification
+  #   environment:
+  #     MONGO_INITDB_DB: notification_db
+  #   ports:
+  #     - '27018:27017'
+  #   volumes:
+  #     - mongodb_notification_data:/data/db
+  #   healthcheck:
+  #     test: ['CMD', 'mongosh', '--eval', 'db.adminCommand("ping")']
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+
+  # rabbitmq:
+  #   image: rabbitmq:3.13-management-alpine
+  #   container_name: chat-rabbitmq
+  #   environment:
+  #     RABBITMQ_DEFAULT_USER: guest
+  #     RABBITMQ_DEFAULT_PASS: guest
+  #   ports:
+  #     - '5672:5672'
+  #     - '15672:15672' # Management UI
+  #   volumes:
+  #     - rabbitmq_data:/var/lib/rabbitmq
+  #   healthcheck:
+  #     test: ['CMD', 'rabbitmq-diagnostics', 'check_port_connectivity']
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: chat-redis
+  #   ports:
+  #     - '6379:6379'
+  #   volumes:
+  #     - redis_data:/data
+  #   healthcheck:
+  #     test: ['CMD', 'redis-cli', 'ping']
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+
+  # ====================================
+  # Backend Services (Use Cloud Services)
+  # ====================================
+
+  api-gateway:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.api-gateway
+    container_name: chat-api-gateway
+    env_file:
+      - ../.env  # Load all variables from .env (cloud service URLs)
+    environment:
+      # Docker-specific overrides (use container names for internal communication)
+      NODE_ENV: ${NODE_ENV:-development}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}
+      USER_SERVICE_URL: http://user-service:3001
+      CHAT_SERVICE_URL: http://chat-service:3002
+      NOTIFICATION_SERVICE_URL: http://notification-service:3003
+      GATEWAY_PORT: ${GATEWAY_PORT:-3000}
+      DOCKER_ENV: 'true'
+    ports:
+      - '3000:3000'
+    depends_on:
+      - user-service
+      - chat-service
+      - notification-service
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3000/health']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    networks:
+      - chat-network
+
+  user-service:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.user-service
+    container_name: chat-user-service
+    env_file:
+      - ../.env  # Load all variables including USER_DB_URL (Render PostgreSQL) and DB_SSL
+    environment:
+      # Docker-specific overrides
+      NODE_ENV: ${NODE_ENV:-development}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}
+      USER_SERVICE_PORT: ${USER_SERVICE_PORT:-3001}
+      TYPEORM_MIGRATIONS_RUN: 'true'
+      DOCKER_ENV: 'true'
+      # USER_DB_URL and DB_SSL from .env will be used (Render PostgreSQL with SSL)
+      # JWT secrets from .env will be used automatically via env_file
+    ports:
+      - '3001:3001'
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3001/health']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks:
+      - chat-network
+
+  chat-service:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.chat-service
+    container_name: chat-chat-service
+    env_file:
+      - ../.env  # Load all variables including CHAT_DB_URL (MongoDB Atlas) and RABBITMQ_URL (CloudAMQP)
+    environment:
+      # Docker-specific overrides
+      NODE_ENV: ${NODE_ENV:-development}
+      USER_SERVICE_HOST: user-service
+      USER_SERVICE_PORT: 3001
+      USER_SERVICE_URL: http://user-service:3001
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}
+      CHAT_SERVICE_PORT: ${CHAT_SERVICE_PORT:-3002}
+      DOCKER_ENV: 'true'
+      # CHAT_DB_URL and RABBITMQ_URL from .env will be used (MongoDB Atlas + CloudAMQP)
+      # JWT secrets from .env will be used automatically via env_file
+    ports:
+      - '3002:3002'
+    depends_on:
+      - user-service
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3002/health']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+  notification-service:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.notification-service
+    container_name: chat-notification-service
+    env_file:
+      - ../.env  # Load all variables including NOTIFICATION_DB_URL (MongoDB Atlas) and RABBITMQ_URL (CloudAMQP)
+    environment:
+      # Docker-specific overrides
+      NODE_ENV: ${NODE_ENV:-development}
+      USER_SERVICE_HOST: user-service
+      USER_SERVICE_PORT: 3001
+      USER_SERVICE_URL: http://user-service:3001
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}
+      NOTIFICATION_SERVICE_PORT: ${NOTIFICATION_SERVICE_PORT:-3003}
+      DOCKER_ENV: 'true'
+      # NOTIFICATION_DB_URL and RABBITMQ_URL from .env will be used (MongoDB Atlas + CloudAMQP)
+      # JWT_ACCESS_SECRET from .env will be used automatically via env_file
+    ports:
+      - '3003:3003'
+    depends_on:
+      - user-service
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3003/health']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks:
+      - chat-network
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  # postgres_data:
+  # mongodb_chat_data:
+  # mongodb_notification_data:
+  # rabbitmq_data:
+  # redis_data:
+
+networks:
+  default:
+    name: chat-network

@@ -3,7 +3,6 @@ version: '3.9'
 services:
   # ====================================
   # Infrastructure Services (Optional - for local development only)
-  # Comment out if using cloud services (Render, Atlas, CloudAMQP)
   # ====================================
 
   # postgres:
@@ -84,7 +83,7 @@ services:
   #     retries: 5
 
   # ====================================
-  # Backend Services (Use Cloud Services)
+  # Backend Services (Cloud Services)
   # ====================================
 
   api-gateway:
@@ -93,7 +92,7 @@ services:
       dockerfile: deploy/Dockerfile.api-gateway
     container_name: chat-api-gateway
     env_file:
-      - ../.env  # Load all variables from .env (cloud service URLs)
+      - .env.docker  # Load Docker-specific environment variables
     environment:
       # Docker-specific overrides (use container names for internal communication)
       NODE_ENV: ${NODE_ENV:-development}
@@ -124,13 +123,13 @@ services:
       dockerfile: deploy/Dockerfile.user-service
     container_name: chat-user-service
     env_file:
-      - ../.env  # Load all variables including USER_DB_URL (Render PostgreSQL) and DB_SSL
+      - .env.docker  # Load Docker-specific environment variables
     environment:
       # Docker-specific overrides
       NODE_ENV: ${NODE_ENV:-development}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}
       USER_SERVICE_PORT: ${USER_SERVICE_PORT:-3001}
-      TYPEORM_MIGRATIONS_RUN: 'true'
+      # RUN_MIGRATION from .env.docker will be used (set to false after first migration)
       DOCKER_ENV: 'true'
       # USER_DB_URL and DB_SSL from .env will be used (Render PostgreSQL with SSL)
       # JWT secrets from .env will be used automatically via env_file
@@ -151,7 +150,7 @@ services:
       dockerfile: deploy/Dockerfile.chat-service
     container_name: chat-chat-service
     env_file:
-      - ../.env  # Load all variables including CHAT_DB_URL (MongoDB Atlas) and RABBITMQ_URL (CloudAMQP)
+      - .env.docker  # Load Docker-specific environment variables
     environment:
       # Docker-specific overrides
       NODE_ENV: ${NODE_ENV:-development}
@@ -173,13 +172,16 @@ services:
       timeout: 5s
       retries: 3
       start_period: 30s
+    networks:
+      - chat-network
+
   notification-service:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.notification-service
     container_name: chat-notification-service
     env_file:
-      - ../.env  # Load all variables including NOTIFICATION_DB_URL (MongoDB Atlas) and RABBITMQ_URL (CloudAMQP)
+      - .env.docker  # Load Docker-specific environment variables
     environment:
       # Docker-specific overrides
       NODE_ENV: ${NODE_ENV:-development}
@@ -203,17 +205,15 @@ services:
       start_period: 30s
     networks:
       - chat-network
-      timeout: 5s
-      retries: 3
-      start_period: 10s
-
-volumes:
-  # postgres_data:
-  # mongodb_chat_data:
-  # mongodb_notification_data:
-  # rabbitmq_data:
-  # redis_data:
 
 networks:
-  default:
-    name: chat-network
+  chat-network:
+    driver: bridge
+
+# Commented out volumes (using cloud services, no local storage needed)
+# volumes:
+#   postgres_data:
+#   mongodb_chat_data:
+#   mongodb_notification_data:
+#   rabbitmq_data:
+#   redis_data:

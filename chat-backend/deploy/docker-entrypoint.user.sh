@@ -29,8 +29,8 @@ if [ "$NODE_ENV" = "production" ]; then
   check_env "DB_SSL"
 fi
 
-# Run database migrations if TYPEORM_MIGRATIONS_RUN is true
-if [ "$TYPEORM_MIGRATIONS_RUN" = "true" ]; then
+# Run database migrations if RUN_MIGRATION is true
+if [ "$RUN_MIGRATION" = "true" ]; then
   echo "${YELLOW}Running database migrations...${NC}"
   
   # Skip connectivity checks for cloud database (Render PostgreSQL is always available)

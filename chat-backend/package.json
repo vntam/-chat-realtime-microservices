@@ -20,7 +20,12 @@
     "test:e2e": "jest --config ./apps/chat-backend/test/jest-e2e.json",
     "test:socket": "node test-simple.js",
     "test:socket:interactive": "node test-socket.js",
-    "typeorm:user-service": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli -d apps/user-service/typeorm.config.ts"
+    "typeorm:user-service": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli -d apps/user-service/typeorm.config.ts",
+    "migration:generate": "npm run typeorm:user-service -- migration:generate",
+    "migration:create": "npm run typeorm:user-service -- migration:create",
+    "migration:run": "npm run typeorm:user-service -- migration:run",
+    "migration:revert": "npm run typeorm:user-service -- migration:revert",
+    "migration:show": "npm run typeorm:user-service -- migration:show"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.947.0",

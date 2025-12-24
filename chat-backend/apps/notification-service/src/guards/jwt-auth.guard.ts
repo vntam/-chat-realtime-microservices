@@ -10,7 +10,7 @@ import { JwtService } from '@nestjs/jwt';
 export class JwtAuthGuard implements CanActivate {
   constructor(private readonly jwtService: JwtService) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
     
     // Extract token from Authorization header or cookie
@@ -24,7 +24,7 @@ export class JwtAuthGuard implements CanActivate {
 
     try {
       // Verify and decode token
-      const payload = this.jwtService.verify(token, {
+      const payload = await this.jwtService.verifyAsync(token, {
         secret: process.env.JWT_ACCESS_SECRET || 'supersecret_access',
       });
 
@@ -32,7 +32,7 @@ export class JwtAuthGuard implements CanActivate {
       request.user = payload;
       
       return true;
-    } catch (error) {
+    } catch {
       throw new UnauthorizedException('Invalid Token');
     }
   }

@@ -8,8 +8,9 @@ import {
   OnGatewayDisconnect,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Logger } from '@nestjs/common';
+import { Logger, UnauthorizedException } from '@nestjs/common';
 import { EventPattern, Payload } from '@nestjs/microservices';
+import { JwtService } from '@nestjs/jwt';
 import { NotificationService } from './notification.service';
 import { MetricsService } from '@app/common';
 
@@ -31,31 +32,46 @@ export class NotificationGateway
   constructor(
     private readonly notificationService: NotificationService,
     private readonly metricsService: MetricsService,
+    private readonly jwtService: JwtService,
   ) {}
 
   async handleConnection(client: Socket) {
     try {
-      // Extract user_id from socket auth (set by AuthGuard middleware)
-      const userId = client.data.userId as number;
+      // Extract token from auth or handshake
+      const token =
+        client.handshake.auth?.token?.replace('Bearer ', '') ||
+        client.handshake.headers?.authorization?.replace('Bearer ', '');
 
-      if (!userId) {
-        this.logger.warn(`Client ${client.id} disconnected: No user_id`);
-        client.disconnect();
-        return;
+      if (!token) {
+        throw new UnauthorizedException('No token provided');
       }
 
+      // Verify JWT and extract user_id
+      const payload = await this.jwtService.verifyAsync(token as string, {
+        secret: process.env.JWT_ACCESS_SECRET || 'supersecret_access',
+      });
+
+      client.data.userId = payload.sub as number;
+
       // Join user's personal room
-      await client.join(`user:${userId}`);
-      this.logger.log(`User ${userId} connected to notifications`);
+      await client.join(`user:${client.data.userId}`);
+
+      this.logger.log(`User ${client.data.userId} connected to notifications`);
 
       // Send current unread count
-      const count = await this.notificationService.getUnreadCount(userId);
+      const count = await this.notificationService.getUnreadCount(
+        client.data.userId as number,
+      );
       client.emit('notification:count', { count });
 
       // Update active connections metric
       this.updateActiveConnectionsMetric();
     } catch (error) {
-      this.logger.error(`Connection error: ${error.message}`);
+      this.logger.error(`Connection failed: ${error.message}`);
+      client.emit('error', {
+        code: 'AUTH_INVALID',
+        message: 'Authentication failed',
+      });
       client.disconnect();
     }
   }
